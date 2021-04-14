@@ -1,4 +1,4 @@
-module github.com/deface90/twofactor
+module github.com/deface90/go-twofactor
 
 go 1.12
 
