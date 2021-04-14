@@ -26,32 +26,34 @@ import (
 )
 
 const (
-	backoff_minutes = 5 // this is the time to wait before verifying another token
-	max_failures    = 3 // total amount of failures, after that the user needs to wait for the backoff time
-	counter_size    = 8 // this is defined in the RFC 4226
-	message_type    = 0 // this is the message type for the crypto engine
+	backoffMinutes = 5 // this is the time to wait before verifying another token
+	maxFailures    = 3 // total amount of failures, after that the user needs to wait for the backoff time
+	counterSize    = 8 // this is defined in the RFC 4226
+	messageType    = 0 // this is the message type for the crypto engine
 )
 
 var (
-	initializationFailedError = errors.New("Totp has not been initialized correctly")
-	LockDownError             = errors.New("The verification is locked down, because of too many trials.")
-	ErrUsedOTP                = errors.New("This OTP already has been used.")
+	errInitializationFailed = errors.New("totp has not been initialized correctly")
+	errLockDown             = errors.New("the verification is locked down, because of too many trials")
+	// ErrUsedOTP raised on OTP already has been used
+	ErrUsedOTP              = errors.New("this OTP already has been used")
 )
 
+// Totp is basic OPT struct
 // WARNING: The `Totp` struct should never be instantiated manually!
 // Use the `NewTOTP` function
 type Totp struct {
-	key                       []byte             // this is the secret key
-	counter                   [counter_size]byte // this is the counter used to synchronize with the client device
-	digits                    int                // total amount of digits of the code displayed on the device
-	issuer                    string             // the company which issues the 2FA
-	account                   string             // usually the user email or the account id
-	stepSize                  int                // by default 30 seconds
-	clientOffset              int                // the amount of steps the client is off
-	totalVerificationFailures int                // the total amount of verification failures from the client - by default 10
-	lastVerificationTime      time.Time          // the last verification executed
-	hashFunction              crypto.Hash        // the hash function used in the HMAC construction (sha1 - sha156 - sha512)
-	lastUsedOTP               string             //remember last successfull used OTP to prevent using it twice
+	key                       []byte            // this is the secret key
+	counter                   [counterSize]byte // this is the counter used to synchronize with the client device
+	digits                    int               // total amount of digits of the code displayed on the device
+	issuer                    string            // the company which issues the 2FA
+	account                   string            // usually the user email or the account id
+	stepSize                  int               // by default 30 seconds
+	clientOffset              int               // the amount of steps the client is off
+	totalVerificationFailures int               // the total amount of verification failures from the client - by default 10
+	lastVerificationTime      time.Time         // the last verification executed
+	hashFunction              crypto.Hash       // the hash function used in the HMAC construction (sha1 - sha156 - sha512)
+	lastUsedOTP               string            //remember last successfull used OTP to prevent using it twice
 }
 
 // This function is used to synchronize the counter with the client
@@ -127,7 +129,7 @@ func makeTOTP(key []byte, account, issuer string, hash crypto.Hash, digits, step
 	return otp, nil
 }
 
-// This function validates the user provided token
+// Validate validates the user provided token
 // It calculates 3 different tokens. The current one, one before now and one after now.
 // The difference is driven by the TOTP step size
 // Based on which of the 3 steps it succeeds to validates, the client offset is updated.
@@ -145,15 +147,15 @@ func (otp *Totp) Validate(userCode string) error {
 
 	// verify that the token is valid
 	if userCode == "" {
-		return errors.New("User provided token is empty")
+		return errors.New("user provided token is empty")
 	}
 
 	// check against the total amount of failures
-	if otp.totalVerificationFailures >= max_failures && !validBackoffTime(otp.lastVerificationTime) {
-		return LockDownError
+	if otp.totalVerificationFailures >= maxFailures && !validBackoffTime(otp.lastVerificationTime) {
+		return errLockDown
 	}
 
-	if otp.totalVerificationFailures >= max_failures && validBackoffTime(otp.lastVerificationTime) {
+	if otp.totalVerificationFailures >= maxFailures && validBackoffTime(otp.lastVerificationTime) {
 		// reset the total verification failures counter
 		otp.totalVerificationFailures = 0
 	}
@@ -175,7 +177,7 @@ func (otp *Totp) Validate(userCode string) error {
 	otp.lastVerificationTime = time.Now().UTC() // important to have it in UTC
 
 	// if we got here everything is good
-	return errors.New("Tokens mismatch.")
+	return errors.New("tokens mismatch")
 }
 
 // validates userToken
@@ -213,7 +215,7 @@ func (otp *Totp) validateUserToken(userToken string) bool {
 // Checks the time difference between the function call time and the parameter
 // if the difference of time is greater than BACKOFF_MINUTES  it returns true, otherwise false
 func validBackoffTime(lastVerification time.Time) bool {
-	diff := lastVerification.UTC().Add(backoff_minutes * time.Minute)
+	diff := lastVerification.UTC().Add(backoffMinutes * time.Minute)
 	return time.Now().UTC().After(diff)
 }
 
@@ -239,7 +241,7 @@ func increment(ts int64, stepSize int) uint64 {
 	return n                           // convert n to little endian byte array
 }
 
-// Generates a new one time password with hmac-(HASH-FUNCTION)
+// OTP Generates a new one time password with hmac-(HASH-FUNCTION)
 func (otp *Totp) OTP() (string, error) {
 
 	// verify the proper initialization
@@ -277,13 +279,13 @@ func calculateTOTP(otp *Totp, index int) string {
 
 }
 
-func truncateHash(hmac_result []byte, size int) int64 {
-	offset := hmac_result[size-1] & 0xf
-	bin_code := (uint32(hmac_result[offset])&0x7f)<<24 |
-		(uint32(hmac_result[offset+1])&0xff)<<16 |
-		(uint32(hmac_result[offset+2])&0xff)<<8 |
-		(uint32(hmac_result[offset+3]) & 0xff)
-	return int64(bin_code)
+func truncateHash(hmacResult []byte, size int) int64 {
+	offset := hmacResult[size-1] & 0xf
+	binCode := (uint32(hmacResult[offset])&0x7f)<<24 |
+		(uint32(hmacResult[offset+1])&0xff)<<16 |
+		(uint32(hmacResult[offset+2])&0xff)<<8 |
+		(uint32(hmacResult[offset+3]) & 0xff)
+	return int64(binCode)
 }
 
 // this is the function which calculates the HTOP code
@@ -501,7 +503,7 @@ func (otp *Totp) ToBytes() ([]byte, error) {
 	}
 
 	// init the message to be encrypted
-	message, err := cryptoengine.NewMessage(buffer.String(), message_type)
+	message, err := cryptoengine.NewMessage(buffer.String(), messageType)
 	if err != nil {
 		return nil, err
 	}
@@ -667,7 +669,7 @@ func TOTPFromBytes(encryptedMessage []byte, issuer string) (*Totp, error) {
 // this method checks the proper initialization of the Totp object
 func totpHasBeenInitialized(otp *Totp) error {
 	if otp == nil || otp.key == nil || len(otp.key) == 0 {
-		return initializationFailedError
+		return errInitializationFailed
 	}
 	return nil
 }

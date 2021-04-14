@@ -313,16 +313,16 @@ func TestSerialization(t *testing.T) {
 		t.Error("Deserialized hash property differ from original TOTP")
 	}
 
-	deserializedUrl, err := deserializedOTP.url()
+	deserializedURL, err := deserializedOTP.url()
 	if err != nil {
 		t.Error(err)
 	}
 
-	otpdUrl, err := otp.url()
+	otpdURL, err := otp.url()
 	if err != nil {
 		t.Error(err)
 	}
-	if deserializedUrl != otpdUrl {
+	if deserializedURL != otpdURL {
 		t.Error("Deserialized URL property differ from original TOTP")
 	}
 
@@ -418,25 +418,14 @@ func TestProperInitialization(t *testing.T) {
 func TestCounterSynchronization(t *testing.T) {
 
 	// create totp
-	otp, err := NewTOTP("info@sec51.com", "Sec51", crypto.SHA512, 8)
+	otp, err := NewTOTP("info@test.com", "Test", crypto.SHA512, 8)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	token0 := calculateTOTP(otp, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	token_1 := calculateTOTP(otp, -1)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	token1 := calculateTOTP(otp, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	token1 := calculateTOTP(otp, -1)
+	token2 := calculateTOTP(otp, 1)
 
 	err = otp.Validate(token0)
 	if err != nil {
@@ -447,7 +436,7 @@ func TestCounterSynchronization(t *testing.T) {
 		t.Errorf("Client offset should be 0, instead we've got %d\n", otp.clientOffset)
 	}
 
-	err = otp.Validate(token_1)
+	err = otp.Validate(token1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -456,7 +445,7 @@ func TestCounterSynchronization(t *testing.T) {
 		t.Errorf("Client offset should be -1, instead we've got %d\n", otp.clientOffset)
 	}
 
-	err = otp.Validate(token1)
+	err = otp.Validate(token2)
 	if err != nil {
 		t.Error(err)
 	}
